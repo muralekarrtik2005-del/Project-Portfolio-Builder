@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Resume & Portfolio Builder</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- html2pdf for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <style>
+    @media print {
+      body { background: white; }
+      .no-print { display: none; }
+    }
+    .resume-card { max-width: 900px; }
+    .photo-preview { width: 100px; height: 100px; object-fit: cover; border-radius: 50%; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- LEFT: Input form -->
+      <div class="lg:col-span-1 bg-white rounded-2xl shadow p-6 no-print">
+        <h2 class="text-2xl font-semibold mb-3">AI Resume & Portfolio Builder</h2>
+        <p class="text-sm text-gray-500 mb-4">Fill the fields and click <strong>Generate</strong>. Add projects, select a template, preview and export as PDF or HTML.</p>
+
+        <div class="space-y-3">
+          <label class="block text-xs font-medium">Profile Photo</label>
+          <input type="file" id="photo" accept="image/*" class="w-full border rounded p-2" />
+
+          <label class="block text-xs font-medium">Full name</label>
+          <input id="name" class="w-full border rounded p-2" placeholder="e.g. Priya Sharma" />
+
+          <label class="block text-xs font-medium">Title</label>
+          <input id="title" class="w-full border rounded p-2" placeholder="e.g. Computer Science Student" />
+
+          <label class="block text-xs font-medium">Email</label>
+          <input id="email" class="w-full border rounded p-2" placeholder="you@domain.com" />
+
+          <label class="block text-xs font-medium">Phone</label>
+          <input id="phone" class="w-full border rounded p-2" placeholder="+91 98765 43210" />
+
+          <label class="block text-xs font-medium">LinkedIn / Portfolio URL</label>
+          <input id="url" class="w-full border rounded p-2" placeholder="linkedin.com/in/username" />
+
+          <label class="block text-xs font-medium">Summary / Objective</label>
+          <textarea id="summary" rows="3" class="w-full border rounded p-2" placeholder="Short professional summary..."></textarea>
+
+          <div>
+            <label class="block text-xs font-medium">Skills (comma separated)</label>
+            <input id="skills" class="w-full border rounded p-2" placeholder="Python, C, ML, SQL" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium">Education (one per line: Degree | Institute | Year | Grade)</label>
+            <textarea id="education" rows="3" class="w-full border rounded p-2" placeholder="B.Tech Computer Science | ABC University | 2024 | 8.2 CGPA"></textarea>
+          </div>
+
+          <!-- Projects -->
+          <div id="projects-area">
+            <label class="block text-xs font-medium">Projects</label>
+            <div id="projects-list" class="space-y-2"></div>
+            <button id="add-project" class="mt-2 bg-indigo-600 text-white px-3 py-1 rounded">+ Add project</button>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium">Preferred Template</label>
+            <select id="template" class="w-full border rounded p-2">
+              <option value="clean">Clean (default)</option>
+              <option value="modern">Modern</option>
+              <option value="compact">Compact</option>
+            </select>
+          </div>
+
+          <div class="flex gap-2 mt-4">
+            <button id="generate" class="flex-1 bg-green-600 text-white rounded py-2">Generate</button>
+            <button id="clear" class="flex-1 bg-gray-300 rounded py-2">Clear</button>
+          </div>
+
+          <div class="mt-4 text-sm text-gray-600">
+            <p><strong>Hint:</strong> Use concise bullets for projects — include technologies and your contribution.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Preview & Export -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex justify-between items-center no-print">
+          <div class="flex gap-2">
+            <button id="download-pdf" class="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2"><i class="fa fa-file-pdf"></i> Export PDF</button>
+            <button id="download-html" class="bg-white border px-4 py-2 rounded">Download HTML</button>
+          </div>
+          <div class="text-sm text-gray-500">Preview (A4-ish). You can print from browser or export PDF.</div>
+        </div>
+
+        <div id="resume-preview" class="resume-card mx-auto bg-white rounded-2xl shadow p-6">
+          <div id="resume-content" class="prose max-w-none"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow p-4 no-print">
+          <h3 class="font-semibold mb-2">Auto-generated Cover Letter</h3>
+          <div id="cover-letter" class="text-sm text-gray-700"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+function esc(s){ return s ? String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+// Projects dynamic UI
+let projectCount = 0;
+function addProjectUI(data){
+  projectCount++;
+  const id = 'proj-'+projectCount;
+  const container = document.createElement('div');
+  container.className = 'border rounded p-3 bg-gray-50';
+  container.id = id;
+  container.innerHTML = `
+    <div class="flex gap-2">
+      <input class="proj-title flex-1 border rounded p-1" placeholder="Project title" value="${esc(data?.title||'')}" />
+      <input class="proj-tech flex-1 border rounded p-1" placeholder="Technologies (comma)" value="${esc(data?.tech||'')}" />
+      <button class="remove text-red-500 px-2">Remove</button>
+    </div>
+    <textarea class="proj-desc w-full mt-2 border rounded p-1" rows="2" placeholder="Short description / your contributions">${esc(data?.desc||'')}</textarea>
+  `;
+  container.querySelector('.remove').onclick = ()=>{ container.remove(); };
+  document.getElementById('projects-list').appendChild(container);
+}
+
+addProjectUI();
+document.getElementById('add-project').addEventListener('click', e=>{ e.preventDefault(); addProjectUI(); });
+
+// Photo preview
+let photoDataUrl = '';
+document.getElementById('photo').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(file){
+    const reader = new FileReader();
+    reader.onload = () => { photoDataUrl = reader.result; };
+    reader.readAsDataURL(file);
+  }
+});
+
+function collectData(){
+  const projects = [];
+  document.querySelectorAll('#projects-list > div').forEach(div=>{
+    const title = div.querySelector('.proj-title').value.trim();
+    const tech = div.querySelector('.proj-tech').value.trim();
+    const desc = div.querySelector('.proj-desc').value.trim();
+    if(title || desc) projects.push({title, tech, desc});
+  });
+  return {
+    name: document.getElementById('name').value.trim(),
+    title: document.getElementById('title').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    url: document.getElementById('url').value.trim(),
+    summary: document.getElementById('summary').value.trim(),
+    skills: document.getElementById('skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+    education: document.getElementById('education').value.split('\n').map(l=>l.trim()).filter(Boolean),
+    projects,
+    template: document.getElementById('template').value
+  };
+}
+
+function generateBulletsFromProject(p){
+  const techPart = p.tech ? ` using ${p.tech}` : '';
+  let bullets = [];
+  if(p.desc) bullets.push(p.desc);
+  bullets.push(Developed ${p.title}${techPart} — implemented key features, testing and documentation.);
+  return bullets;
+}
+
+function renderResume(data){
+  const c = document.getElementById('resume-content');
+  const skillsHtml = data.skills.map(s=><span class="inline-block px-2 py-1 mr-2 mb-2 border rounded text-sm">${esc(s)}</span>).join('');
+  const eduHtml = data.education.map(e=><div class="mb-1"><strong>${esc(e.split('|')[0]?.trim()||e)}</strong><div class="text-sm text-gray-600">${esc(e)}</div></div>).join('');
+  const projHtml = data.projects.map(p=>{
+    const bullets = generateBulletsFromProject(p).map(b=><li>${esc(b)}</li>).join('');
+    return <div class="mb-3"><h4 class="font-semibold">${esc(p.title)}</h4><div class="text-sm text-gray-600 mb-1">${esc(p.tech)}</div><ul class="list-disc ml-5 text-sm text-gray-700">${bullets}</ul></div>;
+  }).join('');
+
+  let headerClass = '';
+  if(data.template==='modern') headerClass = 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-xl';
+  if(data.template==='compact') headerClass = 'p-2';
+
+  const photoHtml = photoDataUrl ? <img src="${photoDataUrl}" class="photo-preview float-right ml-4 mb-2"/> : '';
+
+  const html = `
+    <div class="${headerClass} rounded-xl">
+      <div class="flex justify-between items-start">
+        <div>
+          <h1 class="text-2xl font-bold">${esc(data.name || 'Your Name')}</h1>
+          <div class="text-sm">${esc(data.title || '')}</div>
+        </div>
+        <div class="text-sm text-right">
+          <div>${esc(data.email)}</div>
+          <div>${esc(data.phone)}</div>
+          <div>${esc(data.url)}</div>
+        </div>
+      </div>
+      ${photoHtml}
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="md:col-span-2">
+        <section>
+          <h3 class="font-semibold">Summary</h3>
+          <p class="text-sm text-gray-700">${esc(data.summary || 'Motivated student seeking internships and opportunities to apply technical skills in real projects.')}</p>
+        </section>
+
+        <section class="mt-4">
+          <h3 class="font-semibold">Projects</h3>
+          ${projHtml || '<div class="text-sm text-gray-600">No projects yet — add one on the left.</div>'}
+        </section>
+      </div>
+
+      <aside class="md:col-span-1">
+        <section>
+          <h3 class="font-semibold">Skills</h3>
+          <div class="mt-2">${skillsHtml}</div>
+        </section>
+
+        <section class="mt-4">
+          <h3 class="font-semibold">Education</h3>
+          <div class="mt-2">${eduHtml}</div>
+        </section>
+      </aside>
+    </div>
+  `;
+  c.innerHTML = html;
+}
+
+function generateCoverLetter(data){
+  const intro = data.summary || I am ${data.name || 'a candidate'} applying for internships and entry-level roles in ${data.title || 'technology'}.;
+  const firstPara = ${intro} I have experience working on projects such as ${data.projects.slice(0,2).map(p=>p.title).filter(Boolean).join(', ') || 'academic projects'} which involved ${data.projects[0]?.tech || 'relevant technologies'}.;
+  const secondPara = I am particularly skilled in ${data.skills.slice(0,4).join(', ') || 'key technologies'} and enjoy building reliable software. I am eager to contribute, learn quickly, and grow in a collaborative team.;
+  const closing = Thank you for considering my application. I look forward to discussing how I can contribute.\n\nSincerely,\n${data.name};
+  return <p class="text-sm text-gray-700">${esc(firstPara)}<br><br>${esc(secondPara)}<br><br>${esc(closing)}</p>;
+}
+
+// Buttons
+document.getElementById('generate').addEventListener('click', ()=>{
+  const data = collectData();
+  renderResume(data);
+  document.getElementById('cover-letter').innerHTML = generateCoverLetter(data);
+});
+
+document.getElementById('clear').addEventListener('click', ()=>{ if(confirm('Clear all fields?')) location.reload(); });
+
+document.getElementById('download-pdf').addEventListener('click', ()=>{
+  const element = document.getElementById('resume-preview');
+  html2pdf().set({
+    margin:0.3,
+    filename:(document.getElementById('name').value || 'resume')+'.pdf',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2},
+    jsPDF:{unit:'in',format:'a4',orientation:'portrait'}
+  }).from(element).save();
+});
+
+document.getElementById('download-html').addEventListener('click', ()=>{
+  const blob = new Blob([document.getElementById('resume-content').innerHTML], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.getElementById('name').value || 'resume')+'.html';
+  a.click();
+});
+
+// Sample data
+(function seed(){
+  document.getElementById('name').value = 'Asha R.';
+  document.getElementById('title').value = 'Computer Science Student';
+  document.getElementById('email').value = 'asha@example.com';
+  document.getElementById('phone').value = '+91 98xxxxxxx';
+  document.getElementById('url').value = 'github.com/asha';
+  document.getElementById('summary').value = 'Passionate CS student with hands-on experience building web apps and machine learning prototypes. Looking for internship roles where I can apply algorithms and full-stack skills.';
+  document.getElementById('skills').value = 'Python, JavaScript, React, SQL, Machine Learning';
+  document.getElementById('education').value = 'B.Tech Computer Science | XYZ Institute | 2025 | 8.4 CGPA';
+  const firstProj = document.querySelector('#projects-list > div');
+  firstProj.querySelector('.proj-title').value = 'Smart Campus Map';
+  firstProj.querySelector('.proj-tech').value = 'React, Leaflet, Firebase';
+  firstProj.querySelector('.proj-desc').value = 'Built interactive campus map with search, routing and admin dashboard; improved navigation for students.';
+  document.getElementById('generate').click();
+})();
+</script>
+</body>
+</html>
